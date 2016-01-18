@@ -1,7 +1,5 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE DeriveFunctor     #-}
-{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators     #-}
 {-# LANGUAGE RankNTypes        #-}
@@ -58,8 +56,19 @@ runLoggingProgram = foldFree f
 ------------------------------------------------------------
 
 -- public API
-readKey :: Key -> CounterAPI KV
-readKey key = liftF $ ReadKey key id
+-- readKey :: Key -> CounterAPI KV
+readKey :: Key -> Free (Sum LogF CounterF) KV
+readKey key = do
+    trans x
+  where
+    x :: CounterAPI (KV, Bool)
+    x = liftF $ ReadKey key id
+    trans :: Free CounterF (KV, Bool) -> Free (Sum LogF CounterF) KV
+    trans op@(Pure (kv, b)) = case b of
+                                True -> toRight (Pure kv)
+                                False -> toLeft (liftF $ Log ("** not found") ()) *> toRight (Pure kv)
+
+    trans (ReadKey k f) = trans _
 
 writeKey :: Key -> Value -> CounterAPI ()
 writeKey key v = liftF $ WriteKey key v ()
@@ -84,10 +93,12 @@ runCounterF (Print f') = do
     pCounter
     return f'
 
-rdCounter :: Key -> IO KV
+rdCounter :: Key -> IO (KV, Bool)
 rdCounter k = do
     (Counter hm df) <- readIORef globalCounter
-    return $ KV k (fromMaybe df (HM.lookup k hm))
+    case HM.lookup k hm of
+        Just v -> return (KV k v, True)
+        Nothing -> return (KV k df, False)
 
 wtCounter :: Key -> Value -> IO ()
 wtCounter k v = do

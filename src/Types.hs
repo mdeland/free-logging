@@ -24,7 +24,7 @@ instance ToJSON KV
 data Counter = Counter (HM.Map Key Value) Value
 
 data CounterF a = WriteKey Key Value a
-                | ReadKey Key (KV -> a)
+                | ReadKey Key ((KV, Bool) -> a)
                 | DeleteKey Key a
                 | Print a
                   deriving Functor

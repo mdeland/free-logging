@@ -40,7 +40,7 @@ startServer :: IO ()
 startServer = Warp.run 3000 app
 
 apiReadKey ::  Key -> Free (Sum LogF CounterF) KV
-apiReadKey k = foldFree loggingCounterI $ readKey k
+apiReadKey = readKey
 
 apiWriteKey :: KV -> Free (Sum LogF CounterF) ()
 apiWriteKey (KV k v) = foldFree loggingCounterI $ writeKey k v
