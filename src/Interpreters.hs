@@ -57,18 +57,27 @@ runLoggingProgram = foldFree f
 
 -- public API
 -- readKey :: Key -> CounterAPI KV
-readKey :: Key -> Free (Sum LogF CounterF) KV
-readKey key = do
-    trans x
-  where
-    x :: CounterAPI (KV, Bool)
-    x = liftF $ ReadKey key id
-    trans :: Free CounterF (KV, Bool) -> Free (Sum LogF CounterF) KV
-    trans op@(Pure (kv, b)) = case b of
-                                True -> toRight (Pure kv)
-                                False -> toLeft (liftF $ Log ("** not found") ()) *> toRight (Pure kv)
+-- readKey :: Key -> Free (Sum LogF CounterF) KV
+-- readKey key = do
+--     trans x
+--   where
+--     x :: CounterAPI (KV, Bool)
+--     x = liftF $ ReadKey key id
+--     trans :: Free CounterF (KV, Bool) -> Free (Sum LogF CounterF) KV
+--     trans op@(Pure (kv, b)) = case b of
+--                                 True -> toRight (Pure kv)
+--                                 False -> toLeft (liftF $ Log ("** not found") ()) *> toRight (Pure kv)
 
-    trans (ReadKey k f) = trans _
+--     -- trans (Free op@(ReadKey k f)) = trans $ wrap . f
+--     trans (Free (ReadKey k f)) = trans $ ReadKey k f
+
+readKey :: Key -> Free (Sum LogF CounterF) KV
+readKey k = do
+    x <- toRight $ liftF $ ReadKey k $ \(kv, b) ->
+        case (kv, b) of
+           (_, True) -> toRight $ liftF (ReadKey k id)
+           (_, False) -> toLeft (liftF (Log ("** not found") (kv, b))) *> toRight (liftF (ReadKey k id))
+    fmap fst x
 
 writeKey :: Key -> Value -> CounterAPI ()
 writeKey key v = liftF $ WriteKey key v ()
