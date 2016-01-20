@@ -23,8 +23,11 @@ instance ToJSON KV
 -- the map and a default value
 data Counter = Counter (HM.Map Key Value) Value
 
+data ReceivedKV = Received KV Bool
+
 data CounterF a = WriteKey Key Value a
-                | ReadKey Key (KV -> a)
+                | ReadKey Key (ReceivedKV -> a)
+                | Receive (ReceivedKV) ((KV, Bool) -> a)
                 | DeleteKey Key a
                 | Print a
                   deriving Functor

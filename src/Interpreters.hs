@@ -59,7 +59,9 @@ runLoggingProgram = foldFree f
 
 -- public API
 readKey :: Key -> CounterAPI KV
-readKey key = liftF $ ReadKey key id
+readKey key = fmap fst $ do
+    rcv <- liftF $ (ReadKey key) id
+    liftF $ (Receive rcv) id
 
 writeKey :: Key -> Value -> CounterAPI ()
 writeKey key v = liftF $ WriteKey key v ()
@@ -77,6 +79,8 @@ runCounterF :: CounterF a -> IO a
 runCounterF (ReadKey k f') =  do
     x <- rdCounter k
     return $ f' x
+runCounterF (Receive (Received kv b) f') =
+    return $ f' (kv, b)
 runCounterF (WriteKey k v f') = do
     wtCounter k v
     return f'
@@ -84,10 +88,12 @@ runCounterF (Print f') = do
     pCounter
     return f'
 
-rdCounter :: Key -> IO KV
+rdCounter :: Key -> IO ReceivedKV
 rdCounter k = do
     (Counter hm df) <- readIORef globalCounter
-    return $ KV k (fromMaybe df (HM.lookup k hm))
+    case HM.lookup k hm of
+        Just v -> return $ Received (KV k v) True
+        Nothing -> return $ Received (KV k df) False
 
 wtCounter :: Key -> Value -> IO ()
 wtCounter k v = do
@@ -133,6 +139,7 @@ loggingCounterI op = toLeft (logI op) *> toRight (liftF op)
 
 logI :: CounterF a -> Free LogF ()
 logI (ReadKey k _) = liftF $ Log ("** read key: " ++ show k) ()
+logI (Receive (Received kv b) _) = liftF $ Log ("** found: " ++ show b) ()
 logI (WriteKey k v _) = liftF $ Log ("** write to key: " ++ show k ++ " value: " ++ show v) ()
 logI _ = return ()
 
